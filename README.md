@@ -7,10 +7,10 @@ Simple HTTP server to save artifacts
 
 ```
 $ mkdir $HOME/tmp
-$ ./simple_uploader -token f9403fc5f537b4ab332d <upload_dir>
+$ ./simple_uploader -tokens <tokens_file> <upload_dir>
 ```
 
-(see "Security" section below for `-token` option)
+(see "Security" section below for `-tokens` option)
 
 ## Uploading
 
@@ -33,28 +33,15 @@ hello, world!
 
 ## CORS Preflight Request
 
-* `OPTIONS /files/(filename)`
 * `OPTIONS /upload`
 
 ```
-$ curl -I 'http://localhost:25478/files/foo'
-HTTP/1.1 204 No Content
-Access-Control-Allow-Methods: PUT,GET,HEAD
-Access-Control-Allow-Origin: *
-Date: Sun, 06 Sep 2020 09:45:20 GMT
-
 $ curl -I -XOPTIONS 'http://localhost:25478/upload'
 HTTP/1.1 204 No Content
 Access-Control-Allow-Methods: POST
 Access-Control-Allow-Origin: *
 Date: Sun, 06 Sep 2020 09:45:32 GMT
 ```
-
-notes:
-
-* Requests using `*` as a path, like as `OPTIONS * HTTP/1.1`, are not supported.
-* On sending `OPTIONS` request, `token` parameter is not required.
-* For `/files/(filename)` request, server replies "204 No Content" even if the specified file does not exist.
 
 
 # TLS
@@ -80,6 +67,7 @@ NOTE: The endpoint using HTTP is still active even if TLS is enabled.
 
 There is no Basic/Digest authentication.
 This app implements dead simple authentication: "security token".
+Tokens must be in uuid format, appended in the tokens_file.
 
 All requests should have a `token` parameter (it can be passed as a query string or a form parameter).
 The server accepts the request only when the token is matching a list of known token; otherwise, the server rejects the request and respond `401 Unauthorized`.
@@ -94,5 +82,5 @@ If you enable CORS support using `-cors` option, the server append `Access-Contr
 # Docker
 
 ```
-$ docker run -p 25478:25478 -v $HOME/tmp:/var/root alexissavin/simple_uploader -token f9403fc5f537b4ab332d /var/root
+$ docker run -p 8080:8080 -v $HOME/tmp:/var/root -v $HOME/tmp/tokens:/etc/simple_uploader/tokens alexissavin/simple_uploader -token /etc/simple_uploader/tokens /var/root
 ```
