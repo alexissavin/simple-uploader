@@ -49,9 +49,8 @@ Date: Sun, 06 Sep 2020 09:45:32 GMT
 To enable TLS support, add `-cert` and `-key` options:
 
 ```
-$ ./simple_uploader -cert ./cert.pem -key ./key.pem root/
+$ ./simple_uploader -tokens <tokens_file> -cert ./cert.pem -key ./key.pem root/
 INFO[0000] starting up simple-upload-server
-WARN[0000] token generated                               token=28d93c74c8589ab62b5e
 INFO[0000] start listening TLS                           cert=./cert.pem key=./key.pem port=25443
 INFO[0000] start listening                               ip=0.0.0.0 port=25478 root=root token=28d93c74c8589ab62b5e upload_limit=5242880
 ...

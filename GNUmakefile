@@ -8,16 +8,13 @@ else
 	RELEASE := 99999.9
 endif
 
-APP_NAME := simple_uploader
-OS_ARCH := linux_amd64
-
 default: build
 
 build:
 	go get -v ./...
 	go mod tidy
 	go mod vendor
-	env CGO_ENABLED=0 go build -o APP_NAME
+	env CGO_ENABLED=0 go build -o simple_uploader
 
 fmt:
 	gofmt -s -w ./*.go

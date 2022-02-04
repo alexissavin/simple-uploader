@@ -153,6 +153,20 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 	writeSuccess(w, uploadedURL)
 }
 
+func (s Server) handleOptions(w http.ResponseWriter, r *http.Request) {
+	var allowedMethods []string
+	if rePathUpload.MatchString(r.URL.Path) {
+		allowedMethods = []string{http.MethodPost}
+	} else {
+		w.WriteHeader(http.StatusNotFound)
+		writeError(w, errors.New("not found"))
+		return
+	}
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", strings.Join(allowedMethods, ","))
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s Server) checkToken(r *http.Request) error {
 	// Retrieve the token from the query strings
 	token := r.URL.Query().Get("token")
@@ -181,6 +195,8 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch r.Method {
+	case http.MethodOptions:
+		s.handleOptions(w, r)
 	case http.MethodPost:
 		s.handlePost(w, r)
 	default:
