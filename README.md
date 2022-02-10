@@ -81,5 +81,6 @@ If you enable CORS support using `-cors` option, the server append `Access-Contr
 # Docker
 
 ```
+$ docker build -t simple_uploader:lastest .
 $ docker run -p 8080:8080 -v $HOME/tmp:/var/root -v $HOME/tmp/tokens:/etc/simple_uploader/tokens alexissavin/simple_uploader -token /etc/simple_uploader/tokens /var/root
 ```
