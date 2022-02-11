@@ -16,7 +16,8 @@ func run(args []string) int {
 	tlsListenPort := flag.Int("tlsport", 8443, "port number to listen on with TLS")
 	// 5,242,880 bytes == 5 MiB
 	maxUploadSize := flag.Int64("upload_limit", 5242880, "max size of uploaded file (byte)")
-	tokensFlag := flag.String("tokens", "", "specify the file containing the security tokens ")
+	tokensFlag := flag.String("tokens", "", "specify the file containing the security tokens")
+	maxattempts := flag.Int64("maxattempts", 3, "specify the maximum failed connection attempts")
 	logLevelFlag := flag.String("loglevel", "info", "logging level")
 	certFile := flag.String("cert", "", "path to certificate file")
 	keyFile := flag.String("key", "", "path to key file")
@@ -41,7 +42,7 @@ func run(args []string) int {
 
 	tlsEnabled := *certFile != "" && *keyFile != ""
 
-	server := NewServer(serverRoot, *maxUploadSize, tokensFile, *corsEnabled)
+	server := NewServer(serverRoot, *maxUploadSize, tokensFile, *corsEnabled, *maxattempts)
 
 	http.Handle("/upload", server)
 
@@ -49,12 +50,12 @@ func run(args []string) int {
 
 	go func() {
 		logger.WithFields(logrus.Fields{
-			"ip":               *bindAddress,
-			"port":             *listenPort,
-			"tokensfile":       tokensFile,
-			"upload_limit":     *maxUploadSize,
-			"root":             serverRoot,
-			"cors":             *corsEnabled,
+			"ip":           *bindAddress,
+			"port":         *listenPort,
+			"tokensfile":   tokensFile,
+			"upload_limit": *maxUploadSize,
+			"root":         serverRoot,
+			"cors":         *corsEnabled,
 		}).Info("Start Listening")
 
 		if err := http.ListenAndServe(fmt.Sprintf("%s:%d", *bindAddress, *listenPort), nil); err != nil {
