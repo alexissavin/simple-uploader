@@ -74,6 +74,11 @@ The server accepts the request only when the token is matching a list of known t
 You can specify the server accepted tokens from the file referenced using the `-tokens` option.
 
 
+## Token Brute Force Attack Mitigation
+
+There is a basic protection against token brute force attack. Any source IP attempting to connect with an invalid token is blacklisted for 5 minutes after 3 attemtps.
+You can use the `-maxattempts` option to specify another value.
+
 ## CORS
 
 If you enable CORS support using `-cors` option, the server append `Access-Control-Allow-Origin` header to the response. This feature is disabled by default.
