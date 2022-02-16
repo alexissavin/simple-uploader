@@ -18,14 +18,14 @@ RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /go/bin/app
 FROM debian:bullseye-slim AS runtime-env
 
 RUN groupadd -g 999 goapp
-RUN useradd -r -u 999 -g goapp goapp
+RUN useradd -r -u 999 -g goapp --disabled-password --disabled-login goapp
 
 RUN mkdir -p /etc/simple_uploader/tokens
-RUN chown goapp:goapp /etc/simple_uploader/tokens
-RUN chmod 750 /etc/simple_uploader/tokens
+RUN chown -R goapp:goapp /etc/simple_uploader/tokens
+RUN chmod -R 750 /etc/simple_uploader/tokens
 RUN mkdir -p /var/html/simple_uploader/data
-RUN chown goapp:goapp /var/html/simple_uploader/data
-RUN chmod 770 /var/html/simple_uploader/data
+RUN chown -R goapp:goapp /var/html/simple_uploader/data
+RUN chmod -R 770 /var/html/simple_uploader
 
 COPY --from=build-env /go/bin/app /usr/local/bin/app
 
