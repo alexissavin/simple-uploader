@@ -13,6 +13,7 @@ RUN go mod download
 
 # copy other sources & build
 COPY . /go/src/app
+COPY entrypoint.sh /entrypoint.sh
 RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /go/bin/app
 
 FROM debian:bullseye-slim AS runtime-env
@@ -30,10 +31,7 @@ RUN chmod -R 770 /var/html/simple_uploader
 RUN ls -ld /etc/simple_uploader/tokens
 RUN ls -ld /var/html/simple_uploader/data
 
-VOLUME ["/etc/simple_uploader/tokens", "/var/html/simple_uploader/data"]
-
 COPY --from=build-env /go/bin/app /usr/local/bin/app
 
-USER goapp
 EXPOSE 8080/tcp
-ENTRYPOINT ["/usr/local/bin/app"]
+ENTRYPOINT ["entrypoint.sh"]
