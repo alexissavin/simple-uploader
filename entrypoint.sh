@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 chown -R goapp:goapp /etc/simple_uploader/tokens
 chmod -R 750 /etc/simple_uploader/tokens
