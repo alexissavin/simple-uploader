@@ -1,7 +1,7 @@
 #!/bin/sh
 
 mkdir -p /tmp/simple_uploader
-cp -r /etc/simple_uploader/tokens /tmp/simple_uploader/tokens
+cp -r /etc/simple_uploader/tokens /tmp/simple_uploader/
 chown -R goapp:goapp /tmp/simple_uploader/tokens
 chmod -R 750 /tmp/simple_uploader/tokens
 mkdir -p /var/html/simple_uploader/data
