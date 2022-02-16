@@ -1,7 +1,7 @@
 #!/bin/sh
 
 
-if [[ -d '/etc/simple_uploader' ]] && [[ -d '/etc/simple_uploader/tokens' ]]; then
+if [ -d '/etc/simple_uploader' ] && [ -d '/etc/simple_uploader/tokens' ]; then
   mkdir -p /tmp/simple_uploader
   cp -r /etc/simple_uploader/tokens /tmp/simple_uploader/
   chown -R goapp:goapp /tmp/simple_uploader/tokens
