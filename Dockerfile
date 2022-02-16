@@ -29,6 +29,6 @@ RUN chmod 770 /var/html/simple_uploader/data
 
 COPY --from=build-env /go/bin/app /usr/local/bin/app
 
-USER appuser
+USER goapp
 EXPOSE 8080/tcp
 ENTRYPOINT ["/usr/local/bin/app"]
