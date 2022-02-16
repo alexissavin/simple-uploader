@@ -34,4 +34,4 @@ RUN ls -ld /var/html/simple_uploader/data
 COPY --from=build-env /go/bin/app /usr/local/bin/app
 
 EXPOSE 8080/tcp
-ENTRYPOINT ["entrypoint.sh"]
+ENTRYPOINT ["/bin/sh", "entrypoint.sh"]
