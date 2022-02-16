@@ -27,6 +27,11 @@ RUN mkdir -p /var/html/simple_uploader/data
 RUN chown -R goapp:goapp /var/html/simple_uploader/data
 RUN chmod -R 770 /var/html/simple_uploader
 
+RUN ls -ld /etc/simple_uploader/tokens
+RUN ls -ld /var/html/simple_uploader/data
+
+VOLUME ["/etc/simple_uploader/tokens", "/var/html/simple_uploader/data"]
+
 COPY --from=build-env /go/bin/app /usr/local/bin/app
 
 USER goapp
