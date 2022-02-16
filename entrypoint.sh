@@ -8,4 +8,4 @@ mkdir -p /var/html/simple_uploader/data
 chown -R goapp:goapp /var/html/simple_uploader/data
 chmod -R 770 /var/html/simple_uploader
 
-exec runuser -u goapp '/usr/local/bin/app' '-tokens /tmp/simple_uploader/tokens/tokens' '$@'
+exec runuser -u goapp -c '/usr/local/bin/app -tokens /tmp/simple_uploader/tokens/tokens'
