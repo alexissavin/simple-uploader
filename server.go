@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/sirupsen/logrus"
+	"path/filepath"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -128,7 +129,7 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 	if filename == "" {
 		filename = fmt.Sprintf("%x", sha1.Sum(body))
 	}
-	dstPath := path.Join(uploadDir, filename)
+	dstPath := path.Join(uploadDir, filepath.Base(filename))
 	dstFile, err := os.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		logger.WithError(err).WithField("path", dstPath).Error("Failed to open the file")
