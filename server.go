@@ -130,20 +130,23 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 		filename = fmt.Sprintf("%x", sha1.Sum(body))
 	}
 	dstPath := path.Join(uploadDir, filepath.Base(filename))
-	dstFile, err := os.OpenFile(dstPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	dstFile, err := os.OpenFile(dstPath + ".tmp", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		logger.WithError(err).WithField("path", dstPath).Error("Failed to open the file")
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, err)
 		return
 	}
-	defer dstFile.Close()
+	//FIXME replace the following statement to close the file explicitely and rename it once uploaded
+	//defer dstFile.Close()
 	if written, err := dstFile.Write(body); err != nil {
 		logger.WithError(err).WithField("path", dstPath).Error("Failed to write file content")
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, err)
+		dstFile.Close()
 		return
 	} else if int64(written) != size {
+		dstFile.Close()
 		logger.WithFields(logrus.Fields{
 			"size":    size,
 			"written": written,
@@ -151,6 +154,11 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, fmt.Errorf("The size of uploaded content is %d, but %d bytes written", size, written))
 	}
+	dstFile.Close()
+	err = os.Rename(dstPath + ".tmp", dstPath)
+  if err != nil {
+  	logger.Error("Unable to rename temporary upload file")
+  }
 	uploadedURL := strings.TrimPrefix(dstPath, s.DocumentRoot)
 	if !strings.HasPrefix(uploadedURL, "/") {
 		uploadedURL = "/" + uploadedURL
