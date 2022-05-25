@@ -18,6 +18,7 @@ import (
 )
 
 var (
+	rePathStatus       = regexp.MustCompile(`^/status$`)
 	rePathUpload       = regexp.MustCompile(`^/upload$`)
 	errTokenMismatch   = errors.New("token mismatched")
 	errMissingToken    = errors.New("missing token")
@@ -76,7 +77,27 @@ func NewServer(documentRoot string, maxUploadSize int64, token_file string, enab
 	}
 }
 
+func (s Server) handleGet(w http.ResponseWriter, r *http.Request) {
+	// Validate the path
+	if !rePathStatus.MatchString(r.URL.Path) {
+		w.WriteHeader(http.StatusNotFound)
+		writeError(w, fmt.Errorf("\"%s\" is not found", r.URL.Path))
+		return
+	}
+	if s.EnableCORS {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+	}
+	w.WriteHeader(http.StatusOK)
+	writeOKStatus(w)
+}
+
 func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
+	// Validate the path
+	if !rePathUpload.MatchString(r.URL.Path) {
+		w.WriteHeader(http.StatusNotFound)
+		writeError(w, fmt.Errorf("\"%s\" is not found", r.URL.Path))
+		return
+	}
 	// Retrieve the token from the query strings
 	token := r.URL.Query().Get("token")
 	// If empty attempt to retrieve the token within the form
@@ -137,8 +158,6 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
-	//FIXME replace the following statement to close the file explicitely and rename it once uploaded
-	//defer dstFile.Close()
 	if written, err := dstFile.Write(body); err != nil {
 		logger.WithError(err).WithField("path", dstPath).Error("Failed to write file content")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -178,7 +197,10 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 
 func (s Server) handleOptions(w http.ResponseWriter, r *http.Request) {
 	var allowedMethods []string
-	if rePathUpload.MatchString(r.URL.Path) {
+
+  if rePathStatus.MatchString(r.URL.Path) {
+		allowedMethods = []string{http.MethodGet}
+  } else if rePathUpload.MatchString(r.URL.Path) {
 		allowedMethods = []string{http.MethodPost}
 	} else {
 		w.WriteHeader(http.StatusNotFound)
@@ -286,13 +308,15 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch r.Method {
-	case http.MethodOptions:
-		s.handleOptions(w, r)
-	case http.MethodPost:
-		s.handlePost(w, r)
-	default:
-		w.Header().Add("Allow", "POST")
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		writeError(w, fmt.Errorf("HTTP Method \"%s\" is not allowed", r.Method))
+		case http.MethodOptions:
+			s.handleOptions(w, r)
+		case http.MethodGet:
+			s.handleGet(w,r)
+		case http.MethodPost:
+			s.handlePost(w, r)
+		default:
+			w.Header().Add("Allow", "GET,POST")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			writeError(w, fmt.Errorf("HTTP Method \"%s\" is not allowed", r.Method))
 	}
 }

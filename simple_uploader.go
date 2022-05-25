@@ -57,6 +57,7 @@ func run(args []string) int {
 
 	server := NewServer(serverRoot, *maxUploadSize, tokensFile, *corsEnabled, *maxattempts)
 
+	http.Handle("/status", server)
 	http.Handle("/upload", server)
 
 	errors := make(chan error)

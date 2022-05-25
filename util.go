@@ -29,6 +29,16 @@ func newErrorResponse(err error) errorResponse {
 	return errorResponse{response: response{OK: false}, Message: err.Error()}
 }
 
+func writeOKStatus(w http.ResponseWriter) (int, error) {
+	body := response{OK: true}
+	b, e := json.Marshal(body)
+	// if an error is occured on marshaling, write empty value as response.
+	if e != nil {
+		return w.Write([]byte{})
+	}
+	return w.Write(b)
+}
+
 func writeError(w http.ResponseWriter, err error) (int, error) {
 	body := newErrorResponse(err)
 	b, e := json.Marshal(body)
