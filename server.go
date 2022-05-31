@@ -259,7 +259,7 @@ func (s Server) checkToken(r *http.Request) error {
 				logger.WithFields(logrus.Fields{
 					"srcIP":    srcIP,
 					"attempts": tracker.attempts,
-				}).Error("Too many connection attempts from the following client")
+				}).Error("Too many connection attempts using an invalid token")
 				time.Sleep(time.Second * 4)
 				return errTooManyAttempts
 			}

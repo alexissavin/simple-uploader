@@ -12,6 +12,17 @@ $ ./simple_uploader -tokens <tokens_file> <upload_dir>
 
 (see "Security" section below for `-tokens` option)
 
+
+## Checking Status
+
+You can check the status of the server using the following call:
+
+```
+$ curl 'http://localhost:25478/status?token=f9403fc5f537b4ab332d'
+{"ok":true}
+```
+
+
 ## Uploading
 
 You can upload files with `POST /upload`.
