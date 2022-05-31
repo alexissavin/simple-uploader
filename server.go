@@ -23,7 +23,7 @@ var (
 	errTokenMismatch   = errors.New("token mismatched")
 	errMissingToken    = errors.New("missing token")
 	errInvalidToken    = errors.New("invalid token format")
-	errTooManyAttempts = errors.New("too many failed connection attempts")
+	errTooManyAttempts = errors.New("too many connection attempts using an invalid token")
 )
 
 // FailedConnectionTracker
