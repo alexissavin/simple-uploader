@@ -1,9 +1,6 @@
 FROM golang:1.16 AS build-env
 MAINTAINER Alexis Savin
 
-ARG UID=9999
-ARG GID=9999
-
 RUN mkdir -p /go/src/app
 WORKDIR /go/src/app
 
@@ -18,7 +15,10 @@ RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /go/bin/app
 
 FROM debian:bullseye-slim AS runtime-env
 MAINTAINER Alexis Savin
+
 ARG DEBIAN_FRONTEND=noninteractive
+ARG UID=9999
+ARG GID=9999
 
 RUN groupadd -g ${GID} goapp
 RUN adduser --uid ${UID} --ingroup goapp --system --disabled-password --disabled-login --no-create-home goapp
