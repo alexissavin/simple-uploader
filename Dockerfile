@@ -20,8 +20,8 @@ FROM debian:bullseye-slim AS runtime-env
 MAINTAINER Alexis Savin
 ARG DEBIAN_FRONTEND=noninteractive
 
-RUN groupadd -g $GID goapp
-RUN adduser --uid $UID --ingroup goapp --system --disabled-password --disabled-login --no-create-home goapp
+RUN groupadd -g ${GID} goapp
+RUN adduser --uid ${UID} --ingroup goapp --system --disabled-password --disabled-login --no-create-home goapp
 
 RUN mkdir -p /etc/simple_uploader/tokens
 RUN chown -R goapp:goapp /etc/simple_uploader/tokens
