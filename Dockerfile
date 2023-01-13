@@ -1,4 +1,4 @@
-FROM golang:1.16 AS build-env
+FROM golang:1.18 AS build-env
 MAINTAINER Alexis Savin
 
 RUN mkdir -p /go/src/app
@@ -17,21 +17,9 @@ FROM debian:bullseye-slim AS runtime-env
 MAINTAINER Alexis Savin
 
 ARG DEBIAN_FRONTEND=noninteractive
-ARG USERID=9999
-ARG GROUPID=9999
 
-RUN groupadd -g ${GROUPID} goapp
-RUN adduser --uid ${USERID} --ingroup goapp --system --disabled-password --disabled-login --no-create-home goapp
-
-RUN mkdir -p /etc/simple_uploader/tokens
-RUN chown -R goapp:goapp /etc/simple_uploader/tokens
-RUN chmod -R 750 /etc/simple_uploader/tokens
+RUN mkdir -p /etc/simple_uploader
 RUN mkdir -p /var/html/simple_uploader/data
-RUN chown -R goapp:goapp /var/html/simple_uploader/data
-RUN chmod -R 770 /var/html/simple_uploader
-
-RUN ls -ld /etc/simple_uploader/tokens
-RUN ls -ld /var/html/simple_uploader/data
 
 COPY ./entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --from=build-env /go/bin/app /usr/local/bin/app
