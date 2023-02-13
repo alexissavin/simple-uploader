@@ -14,7 +14,7 @@ COPY . /go/src/app
 RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /go/bin/app
 
 FROM debian:bullseye-slim AS runtime-env
-MAINTAINER Alexis Savin
+LABEL org.opencontainers.image.authors="Alexis Savin"
 
 ARG DEBIAN_FRONTEND=noninteractive
 
