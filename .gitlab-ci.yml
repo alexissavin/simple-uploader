@@ -3,8 +3,8 @@ image: docker:latest
 variables:
   DOCKER_TLS_CERTDIR: ""
 
-# services:
-#   - name: docker:dind
+services:
+  - name: docker:dind
 
 stages:
   - build
