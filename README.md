@@ -1,4 +1,7 @@
+[![pipeline status](https://gitlab.efficientip.com/data-factory/glake-simple-uploader/badges/main/pipeline.svg)](https://gitlab.efficientip.com/data-factory/glake-simple-uploader/-/commits/main)
+
 # simple_uploader
+
 Simple HTTP server to save artifacts
 
 # Usage
@@ -6,12 +9,11 @@ Simple HTTP server to save artifacts
 ## Start Server
 
 ```
-$ mkdir $HOME/tmp
-$ ./simple_uploader -tokens <tokens_file> <upload_dir>
+mkdir $HOME/tmp
+./simple_uploader -tokens <tokens_file> <upload_dir>
 ```
 
 (see "Security" section below for `-tokens` option)
-
 
 ## Checking Status
 
@@ -21,7 +23,6 @@ You can check the status of the server using the following call:
 $ curl 'http://localhost:25478/status?token=f9403fc5f537b4ab332d'
 {"ok":true}
 ```
-
 
 ## Uploading
 
@@ -41,7 +42,6 @@ $ cat /<upload_dir>/f9403fc5f537b4ab332d/sample.txt
 hello, world!
 ```
 
-
 ## CORS Preflight Request
 
 * `OPTIONS /upload`
@@ -53,7 +53,6 @@ Access-Control-Allow-Methods: POST
 Access-Control-Allow-Origin: *
 Date: Sun, 06 Sep 2020 09:45:32 GMT
 ```
-
 
 # TLS
 
@@ -71,8 +70,8 @@ This server listens on `25443/tcp` for TLS connections by default. This can be c
 
 NOTE: The endpoint using HTTP is still active even if TLS is enabled.
 
-
 # Security
+
 ## Tokens
 
 There is no Basic/Digest authentication.
@@ -83,7 +82,6 @@ All requests should have a `token` parameter (it can be passed as a query string
 The server accepts the request only when the token is matching a list of known token; otherwise, the server rejects the request and respond `401 Unauthorized`.
 
 You can specify the server accepted tokens from the file referenced using the `-tokens` option.
-
 
 ## Token Brute Force Attack Mitigation
 
@@ -97,6 +95,6 @@ If you enable CORS support using `-cors` option, the server append `Access-Contr
 # Docker
 
 ```
-$ docker build -t simple-uploader:latest .
-$ docker run -p 8080:8080 -user `id -u`:`id -g` -v $(pwd)/data:/var/html/simple_uploader/data -v $(pwd)/tokens/tokens:/etc/simple_uploader/tokens simple-uploader:latest
+docker build -t simple-uploader:latest .
+docker run -p 8080:8080 -user `id -u`:`id -g` -v $(pwd)/data:/var/html/simple_uploader/data -v $(pwd)/tokens/tokens:/etc/simple_uploader/tokens simple-uploader:latest
 ```

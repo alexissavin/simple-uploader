@@ -1,5 +1,5 @@
 FROM golang:1.18 AS build-env
-MAINTAINER Alexis Savin
+LABEL org.opencontainers.image.authors="Alexis Savin"
 
 RUN mkdir -p /go/src/app
 WORKDIR /go/src/app
