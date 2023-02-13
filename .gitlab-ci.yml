@@ -1,7 +1,7 @@
-# image: docker:latest
+image: docker:latest
 
-# variables:
-#   DOCKER_TLS_CERTDIR: ""
+variables:
+  DOCKER_TLS_CERTDIR: ""
 
 # services:
 #   - name: docker:dind
