@@ -16,7 +16,7 @@ func run(args []string) int {
 	listenPort := flag.Int("port", 8080, "port number to listen on")
 	tlsListenPort := flag.Int("tlsport", 8443, "port number to listen on with TLS")
 	// maxUploadSize := flag.Int64("upload_limit", 67108864, "max size of uploaded file (bytes), default 64MB")
-	maxUploadSize := flag.Int64("upload_limit", 134 217 728, "max size of uploaded file (bytes), default 128MB")
+	maxUploadSize := flag.Int64("upload_limit", 134217728, "max size of uploaded file (bytes), default 128MB")
 	tokensFlag := flag.String("tokens", "/etc/simple_uploader/tokens", "specify the file containing the security tokens")
 	maxattempts := flag.Int64("maxattempts", 3, "specify the maximum failed connection attempts")
 	logLevelFlag := flag.String("loglevel", "info", "logging level")
