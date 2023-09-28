@@ -1,4 +1,4 @@
-module github.com/alexissavin/simple_uploader
+module gitlab.efficientip.com/data-factory/glake-simple-uploader
 
 go 1.19
 
