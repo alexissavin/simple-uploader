@@ -1,4 +1,4 @@
-FROM golang:1.18 AS build-env
+FROM golang:1.19 AS build-env
 MAINTAINER Alexis Savin
 
 RUN mkdir -p /go/src/app
