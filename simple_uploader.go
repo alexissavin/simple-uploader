@@ -6,6 +6,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"net/http"
 	"errors"
+	"os/signal"
+	"syscall"
 	"os"
 )
 
@@ -32,6 +34,7 @@ func run(args []string) int {
 	}
 
 	serverRoot := flag.Arg(0)
+
 	if len(serverRoot) == 0 {
 		serverRoot = "/var/html/simple_uploader/data"
 
@@ -42,7 +45,7 @@ func run(args []string) int {
 	}
 
 	if logLevel, err := logrus.ParseLevel(*logLevelFlag); err != nil {
-		logrus.WithError(err).Error("failed to parse logging level, so set to default")
+		logger.WithError(err).Error("failed to parse logging level, so set to default")
 	} else {
 		logger.Level = logLevel
 	}
@@ -91,10 +94,32 @@ func run(args []string) int {
 		}()
 	}
 
-	err := <-errors
-	logger.WithError(err).Info("Closing simple-upload-server")
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
-	return 0
+	select {
+	case sig := <-signalChan:
+		logger.Infof("Received signal: %v", sig)
+		// Add any necessary cleanup or shutdown logic here.
+		// For example, gracefully close open connections or files.
+		//ctx, cancel := context.WithTimeout(context.Background(), 8 * time.Second)
+
+		//defer func() {
+			// extra handling here if needed
+			//cancel()
+		//}()
+
+		//if err := http.Shutdown(ctx); err != nil {
+		//	logger.Fatalf("Simple-upload-server Shutdown Failed:%+v", err)
+		//}
+		logger.Print("Simple-upload-server Exited")
+
+		// Then exit the program.
+		return 0
+	case err := <-errors:
+		logger.WithError(err).Info("Simple-upload-server Exited with Error(s)")
+		return 1
+	}
 }
 
 func main() {
