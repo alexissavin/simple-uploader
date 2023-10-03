@@ -8,6 +8,8 @@ import (
 	"errors"
 	"os/signal"
 	"syscall"
+	"context"
+	"time"
 	"os"
 )
 
@@ -45,7 +47,7 @@ func run(args []string) int {
 	}
 
 	if logLevel, err := logrus.ParseLevel(*logLevelFlag); err != nil {
-		logger.WithError(err).Error("failed to parse logging level, so set to default")
+		logger.WithError(err).Error("Failed to parse logging level, so set to default")
 	} else {
 		logger.Level = logLevel
 	}
@@ -56,9 +58,16 @@ func run(args []string) int {
 		return 1
 	}
 
+	signalChan := make(chan os.Signal, 1)
+	signal.Notify(signalChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+
 	tlsEnabled := *certFile != "" && *keyFile != ""
 
 	server := NewServer(serverRoot, *maxUploadSize, tokensFile, *corsEnabled, *maxattempts)
+
+	httpSrv := &http.Server{
+		Addr: fmt.Sprintf("%s:%d", *bindAddress, *listenPort),
+	}
 
 	http.Handle("/status", server)
 	http.Handle("/upload", server)
@@ -75,7 +84,7 @@ func run(args []string) int {
 			"cors":         *corsEnabled,
 		}).Info("Start Listening")
 
-		if err := http.ListenAndServe(fmt.Sprintf("%s:%d", *bindAddress, *listenPort), nil); err != nil {
+		if err := httpSrv.ListenAndServe(); err != nil {
 			errors <- err
 		}
 	}()
@@ -88,33 +97,30 @@ func run(args []string) int {
 				"port": *tlsListenPort,
 			}).Info("Start listening TLS")
 
-			if err := http.ListenAndServeTLS(fmt.Sprintf("%s:%d", *bindAddress, *tlsListenPort), *certFile, *keyFile, nil); err != nil {
+			if err := httpSrv.ListenAndServeTLS(*certFile, *keyFile); err != nil {
 				errors <- err
 			}
 		}()
 	}
-
-	signalChan := make(chan os.Signal, 1)
-	signal.Notify(signalChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 
 	select {
 	case sig := <-signalChan:
 		logger.Infof("Received signal: %v", sig)
 		// Add any necessary cleanup or shutdown logic here.
 		// For example, gracefully close open connections or files.
-		//ctx, cancel := context.WithTimeout(context.Background(), 8 * time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 8 * time.Second)
 
-		//defer func() {
+		defer func() {
 			// extra handling here if needed
-			//cancel()
-		//}()
+			logger.Info("Simple-upload-server Terminating")
+			cancel()
+		}()
 
-		//if err := http.Shutdown(ctx); err != nil {
-		//	logger.Fatalf("Simple-upload-server Shutdown Failed:%+v", err)
-		//}
-		logger.Print("Simple-upload-server Exited")
+		if err := httpSrv.Shutdown(ctx); err != nil {
+			logger.Fatalf("Simple-upload-server Shutdown Failed:%+v", err)
+		}
 
-		// Then exit the program.
+		logger.Print("Simple-upload-server Terminated")
 		return 0
 	case err := <-errors:
 		logger.WithError(err).Info("Simple-upload-server Exited with Error(s)")

@@ -25,4 +25,4 @@ COPY ./entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --from=build-env /go/bin/app /usr/local/bin/app
 
 EXPOSE 8080/tcp
-ENTRYPOINT ["/bin/sh", "/usr/local/bin/entrypoint.sh"]
+ENTRYPOINT ["/usr/local/bin/app"]
