@@ -21,7 +21,6 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN mkdir -p /etc/simple_uploader
 RUN mkdir -p /var/html/simple_uploader/data
 
-COPY ./entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY --from=build-env /go/bin/app /usr/local/bin/app
 
 EXPOSE 8080/tcp
