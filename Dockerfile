@@ -25,3 +25,6 @@ COPY --from=build-env /var/html/simple_uploader/data /var/html/simple_uploader/d
 
 EXPOSE 8080/tcp
 ENTRYPOINT ["/usr/local/bin/app"]
+
+# test build: docker build -t testglake .
+# vuln test: 
