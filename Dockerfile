@@ -1,5 +1,5 @@
-FROM golang:1.19 AS build-env
-MAINTAINER Alexis Savin
+FROM golang:1.21 AS build-env
+LABEL org.opencontainers.image.authors="Alexis Savin"
 
 RUN mkdir -p /go/src/app
 WORKDIR /go/src/app
@@ -12,16 +12,16 @@ RUN go mod download
 # copy other sources & build
 COPY . /go/src/app
 RUN GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o /go/bin/app
+RUN mkdir -p /etc/simple_uploader && mkdir -p /var/html/simple_uploader/data
 
-FROM debian:bullseye-slim AS runtime-env
+FROM istio/distroless:latest AS runtime-env
+
 LABEL org.opencontainers.image.authors="Alexis Savin"
 
-ARG DEBIAN_FRONTEND=noninteractive
-
-RUN mkdir -p /etc/simple_uploader
-RUN mkdir -p /var/html/simple_uploader/data
-
 COPY --from=build-env /go/bin/app /usr/local/bin/app
+
+COPY --from=build-env /etc/simple_uploader /etc/simple_uploader
+COPY --from=build-env /var/html/simple_uploader/data /var/html/simple_uploader/data
 
 EXPOSE 8080/tcp
 ENTRYPOINT ["/usr/local/bin/app"]
