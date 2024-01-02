@@ -1,0 +1,22 @@
+# docker-compose -p glake up -d --no-recreate
+
+version: '3.9'
+services:
+  glake:
+    image: testglake
+
+    user: 1001:1001
+
+    volumes:
+      - ./tokens:/etc/simple_uploader/tokens
+      - ./data:/var/html/simple_uploader/data
+
+    deploy:
+      resources:
+        limits:
+          memory: 512m
+
+    logging:
+      options:
+        max-size: 32m
+
