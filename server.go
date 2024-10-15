@@ -6,12 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"path/filepath"
 	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -36,11 +36,13 @@ type fct struct {
 type Server struct {
 	DocumentRoot string
 	// MaxUploadSize limits the size of the uploaded content, specified with "byte".
-	MaxUploadSize    int64
-	SecureTokens     []string
-	EnableCORS       bool
-	MaxAttempts      int64
-	FailedConTracker map[string]fct
+	MaxUploadSize      int64
+	SecureTokens       []string
+	EnableCORS         bool
+	MaxAttempts        int64
+	FailedConTracker   map[string]fct
+	LimitDiskFreeSpace int
+	LimitWaitingFiles  int
 }
 
 // Read the tokens file
@@ -66,14 +68,18 @@ func LoadTokens(tokens_file string) []string {
 }
 
 // NewServer creates a new simple-upload server.
-func NewServer(documentRoot string, maxUploadSize int64, token_file string, enableCORS bool, MaxAttempts int64) Server {
+func NewServer(documentRoot string, maxUploadSize int64,
+	token_file string, enableCORS bool, MaxAttempts int64,
+	LimitDiskFreeSpace int, LimitWaitingFiles int) Server {
 	return Server{
-		DocumentRoot:     documentRoot,
-		MaxUploadSize:    maxUploadSize,
-		SecureTokens:     LoadTokens(token_file),
-		EnableCORS:       enableCORS,
-		MaxAttempts:      MaxAttempts,
-		FailedConTracker: make(map[string]fct),
+		DocumentRoot:       documentRoot,
+		MaxUploadSize:      maxUploadSize,
+		SecureTokens:       LoadTokens(token_file),
+		EnableCORS:         enableCORS,
+		MaxAttempts:        MaxAttempts,
+		FailedConTracker:   make(map[string]fct),
+		LimitDiskFreeSpace: LimitDiskFreeSpace,
+		LimitWaitingFiles:  LimitWaitingFiles,
 	}
 }
 
@@ -151,7 +157,7 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 		filename = fmt.Sprintf("%x", sha1.Sum(body))
 	}
 	dstPath := path.Join(uploadDir, filepath.Base(filename))
-	dstFile, err := os.OpenFile(dstPath + ".tmp", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	dstFile, err := os.OpenFile(dstPath+".tmp", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
 		logger.WithError(err).WithField("path", dstPath).Error("Failed to open the file")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -174,10 +180,10 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fmt.Errorf("The size of uploaded content is %d, but %d bytes written", size, written))
 	}
 	dstFile.Close()
-	err = os.Rename(dstPath + ".tmp", dstPath)
-  if err != nil {
-  	logger.Error("Unable to rename temporary upload file")
-  }
+	err = os.Rename(dstPath+".tmp", dstPath)
+	if err != nil {
+		logger.Error("Unable to rename temporary upload file")
+	}
 	uploadedURL := strings.TrimPrefix(dstPath, s.DocumentRoot)
 	if !strings.HasPrefix(uploadedURL, "/") {
 		uploadedURL = "/" + uploadedURL
@@ -198,9 +204,9 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 func (s Server) handleOptions(w http.ResponseWriter, r *http.Request) {
 	var allowedMethods []string
 
-  if rePathStatus.MatchString(r.URL.Path) {
+	if rePathStatus.MatchString(r.URL.Path) {
 		allowedMethods = []string{http.MethodGet}
-  } else if rePathUpload.MatchString(r.URL.Path) {
+	} else if rePathUpload.MatchString(r.URL.Path) {
 		allowedMethods = []string{http.MethodPost}
 	} else {
 		w.WriteHeader(http.StatusNotFound)
@@ -307,16 +313,40 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+
+	// check disk free and number of waiting files
+	var diskfreep, numfiles = getDiskUsage(s.DocumentRoot)
+
+	if diskfreep < s.LimitDiskFreeSpace {
+		w.WriteHeader(http.StatusInsufficientStorage)
+		writeError(w, fmt.Errorf("low water disk level reached %d%%, limit is %d%%", diskfreep, s.LimitDiskFreeSpace))
+		logger.WithFields(logrus.Fields{
+			"limit":   s.LimitDiskFreeSpace,
+			"current": diskfreep,
+		}).Error("low water disk level reached, abort")
+		return
+	}
+
+	if numfiles > s.LimitWaitingFiles {
+		w.WriteHeader(http.StatusInsufficientStorage)
+		writeError(w, fmt.Errorf("max number of files reached %d, limit is %d", numfiles, s.LimitWaitingFiles))
+		logger.WithFields(logrus.Fields{
+			"limit":   s.LimitWaitingFiles,
+			"current": numfiles,
+		}).Error("max number of files reached, abort")
+		return
+	}
+
 	switch r.Method {
-		case http.MethodOptions:
-			s.handleOptions(w, r)
-		case http.MethodGet:
-			s.handleGet(w,r)
-		case http.MethodPost:
-			s.handlePost(w, r)
-		default:
-			w.Header().Add("Allow", "GET,POST")
-			w.WriteHeader(http.StatusMethodNotAllowed)
-			writeError(w, fmt.Errorf("HTTP Method \"%s\" is not allowed", r.Method))
+	case http.MethodOptions:
+		s.handleOptions(w, r)
+	case http.MethodGet:
+		s.handleGet(w, r)
+	case http.MethodPost:
+		s.handlePost(w, r)
+	default:
+		w.Header().Add("Allow", "GET,POST")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		writeError(w, fmt.Errorf("HTTP Method \"%s\" is not allowed", r.Method))
 	}
 }

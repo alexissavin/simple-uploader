@@ -1,16 +1,16 @@
 package main
 
 import (
+	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"net/http"
-	"errors"
+	"os"
 	"os/signal"
 	"syscall"
-	"context"
 	"time"
-	"os"
 )
 
 var logger *logrus.Logger
@@ -28,6 +28,8 @@ func run(args []string) int {
 	keyFile := flag.String("key", "", "path to key file")
 	corsEnabled := flag.Bool("cors", false, "if true, add ACAO header to support CORS")
 	helpRequested := flag.Bool("help", false, "display the usage")
+	limitDiskFreeSpace := flag.Int("diskfree", 15, "percent of free disk space to accept new file")
+	limitWaitingFiles := flag.Int("waitingfiles", 1000, "number of files maximum in the depot")
 	flag.Parse()
 
 	if *helpRequested == true {
@@ -63,7 +65,7 @@ func run(args []string) int {
 
 	tlsEnabled := *certFile != "" && *keyFile != ""
 
-	server := NewServer(serverRoot, *maxUploadSize, tokensFile, *corsEnabled, *maxattempts)
+	server := NewServer(serverRoot, *maxUploadSize, tokensFile, *corsEnabled, *maxattempts, *limitDiskFreeSpace, *limitWaitingFiles)
 
 	httpSrv := &http.Server{
 		Addr: fmt.Sprintf("%s:%d", *bindAddress, *listenPort),
@@ -82,6 +84,8 @@ func run(args []string) int {
 			"upload_limit": *maxUploadSize,
 			"root":         serverRoot,
 			"cors":         *corsEnabled,
+			"diskfree":     *limitDiskFreeSpace,
+			"waitingfiles": *limitWaitingFiles,
 		}).Info("Start Listening")
 
 		if err := httpSrv.ListenAndServe(); err != nil {
@@ -108,7 +112,7 @@ func run(args []string) int {
 		logger.Infof("Received signal: %v", sig)
 		// Add any necessary cleanup or shutdown logic here.
 		// For example, gracefully close open connections or files.
-		ctx, cancel := context.WithTimeout(context.Background(), 8 * time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 
 		defer func() {
 			// extra handling here if needed
