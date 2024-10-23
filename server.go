@@ -249,8 +249,6 @@ func getSrcIP(r *http.Request) (string, error) {
 }
 
 func (s Server) checkToken(r *http.Request) error {
-	//FIXME Ensure client IP is not blacklisted
-	//FIXME If getSrcIP(r) is in the list and for less than X Minute, do not answer
 	srcIP, srcIPError := getSrcIP(r)
 
 	if srcIPError == nil {
@@ -258,17 +256,21 @@ func (s Server) checkToken(r *http.Request) error {
 		tracker, trackerExists := s.FailedConTracker[srcIP]
 
 		if trackerExists {
-			tracker.last = connectionTime
 			tracker.attempts = tracker.attempts + 1
-			s.FailedConTracker[srcIP] = tracker
-			if tracker.attempts > s.MaxAttempts && tracker.last > (connectionTime-300) {
-				logger.WithFields(logrus.Fields{
-					"srcIP":    srcIP,
-					"attempts": tracker.attempts,
-				}).Error("Too many connection attempts using an invalid token")
-				time.Sleep(time.Second * 4)
-				return errTooManyAttempts
+			if tracker.attempts > s.MaxAttempts {
+				if tracker.last > (connectionTime - 290) {
+					tracker.last = connectionTime
+					s.FailedConTracker[srcIP] = tracker
+					logger.WithFields(logrus.Fields{
+						"srcIP":    srcIP,
+						"attempts": tracker.attempts,
+					}).Error("Too many connection attempts using an invalid token")
+					time.Sleep(time.Second * 4)
+					return errTooManyAttempts
+				}
 			}
+			tracker.last = connectionTime
+			s.FailedConTracker[srcIP] = tracker
 		} else {
 			s.FailedConTracker[srcIP] = fct{
 				last:     connectionTime,
