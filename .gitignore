@@ -2,6 +2,7 @@
 *.o
 *.a
 *.so
+simple_uploader
 
 # Folders
 _obj

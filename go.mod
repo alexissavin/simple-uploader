@@ -1,6 +1,6 @@
 module gitlab.efficientip.com/data-factory/glake-simple-uploader
 
-go 1.19
+go 1.22
 
 require github.com/sirupsen/logrus v1.9.3
 

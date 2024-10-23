@@ -1,4 +1,4 @@
-FROM golang:1.21 AS build-env
+FROM golang:1.22 AS build-env
 LABEL org.opencontainers.image.authors="Alexis Savin"
 
 RUN mkdir -p /go/src/app

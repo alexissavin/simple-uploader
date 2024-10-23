@@ -303,9 +303,15 @@ func (s Server) checkToken(r *http.Request) error {
 			}
 		}
 
+		logger.WithFields(logrus.Fields{
+			"token": token[:min(len(token), 8)],
+		}).Error("Connection attempt using unkown token")
 		return errTokenMismatch
 	}
 
+	logger.WithFields(logrus.Fields{
+		"token": token[:min(len(token), 8)],
+	}).Error("Connection attempt using invalid token format")
 	return errInvalidToken
 }
 
