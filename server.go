@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+  "sync"
 )
 
 var (
@@ -43,6 +44,7 @@ type Server struct {
 	FailedConTracker   map[string]fct
 	LimitDiskFreeSpace int
 	LimitWaitingFiles  int
+	FailedConTrackerMu sync.Mutex
 }
 
 // Read the tokens file
@@ -254,6 +256,9 @@ func (s Server) checkToken(r *http.Request) error {
 	if srcIPError == nil {
 		connectionTime := time.Now().Unix()
 		tracker, trackerExists := s.FailedConTracker[srcIP]
+
+		s.FailedConTrackerMu.Lock()
+    defer s.FailedConTrackerMu.Unlock()
 
 		if trackerExists {
 			tracker.attempts = tracker.attempts + 1
