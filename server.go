@@ -124,6 +124,10 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// TEST // Attempt to handle Expect header
+  if r.Header.Get("Expect") == "100-continue" {
+      w.WriteHeader(http.StatusContinue)
+  }
 	// Retrieve the form file
 	srcFile, info, err := r.FormFile("file")
 	if err != nil {
@@ -166,14 +170,13 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+	defer dstFile.Close()
 	if written, err := dstFile.Write(body); err != nil {
 		logger.WithError(err).WithField("path", dstPath).Error("Failed to write file content")
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, err)
-		dstFile.Close()
 		return
 	} else if int64(written) != size {
-		dstFile.Close()
 		logger.WithFields(logrus.Fields{
 			"size":    size,
 			"written": written,
@@ -181,7 +184,6 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, fmt.Errorf("The size of uploaded content is %d, but %d bytes written", size, written))
 	}
-	dstFile.Close()
 	err = os.Rename(dstPath+".tmp", dstPath)
 	if err != nil {
 		logger.Error("Unable to rename temporary upload file")
