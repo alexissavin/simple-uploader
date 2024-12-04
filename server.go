@@ -14,14 +14,13 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
-  "sync"
 )
 
 const (
 	tokenDumpLentgh = 8
 )
-
 
 var (
 	rePathStatus       = regexp.MustCompile(`^/status$`)
@@ -123,20 +122,20 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 	if _, err := os.Stat(uploadDir); errors.Is(err, os.ErrNotExist) {
 		err := os.Mkdir(uploadDir, os.ModePerm)
 		if err != nil {
-			logger.WithError(err).WithFields(logrus.Fields{"token": token[:min(len(token), tokenDumpLentgh)],}).Error("Failed to create upload directory for the given token")
+			logger.WithError(err).WithFields(logrus.Fields{"token": token[:min(len(token), tokenDumpLentgh)]}).Error("Failed to create upload directory for the given token")
 			w.WriteHeader(http.StatusInternalServerError)
 			writeError(w, err)
 			return
 		}
 	}
 	// TEST // Attempt to handle Expect header
-  if r.Header.Get("Expect") == "100-continue" {
-      w.WriteHeader(http.StatusContinue)
-  }
+	if r.Header.Get("Expect") == "100-continue" {
+		w.WriteHeader(http.StatusContinue)
+	}
 	// Retrieve the form file
 	srcFile, info, err := r.FormFile("file")
 	if err != nil {
-		logger.WithError(err).WithFields(logrus.Fields{"token": token[:min(len(token), tokenDumpLentgh)],}).Error("Failed to acquire the uploaded content")
+		logger.WithError(err).WithFields(logrus.Fields{"token": token[:min(len(token), tokenDumpLentgh)]}).Error("Failed to acquire the uploaded content")
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, err)
 		return
@@ -145,7 +144,7 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 	logger.Debug(info)
 	size, err := getSize(srcFile)
 	if err != nil {
-		logger.WithError(err).WithFields(logrus.Fields{"token": token[:min(len(token), tokenDumpLentgh)],}).Error("Failed to get the size of the uploaded content")
+		logger.WithError(err).WithFields(logrus.Fields{"token": token[:min(len(token), tokenDumpLentgh)]}).Error("Failed to get the size of the uploaded content")
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, err)
 		return
@@ -158,7 +157,7 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 	}
 	body, err := ioutil.ReadAll(srcFile)
 	if err != nil {
-		logger.WithError(err).WithFields(logrus.Fields{"token": token[:min(len(token), tokenDumpLentgh)],}).Error("Failed to read the uploaded content")
+		logger.WithError(err).WithFields(logrus.Fields{"token": token[:min(len(token), tokenDumpLentgh)]}).Error("Failed to read the uploaded content")
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, err)
 		return
@@ -185,7 +184,7 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 		logger.WithFields(logrus.Fields{
 			"size":    size,
 			"written": written,
-			"token": token[:min(len(token), tokenDumpLentgh)],
+			"token":   token[:min(len(token), tokenDumpLentgh)],
 		}).Error("Uploaded file size and written size differ")
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, fmt.Errorf("The size of uploaded content is %d, but %d bytes written", size, written))
@@ -200,9 +199,9 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 	}
 	uploadedURL = "/files" + uploadedURL
 	logger.WithFields(logrus.Fields{
-		"path": dstPath,
-		"url":  uploadedURL,
-		"size": size,
+		"path":  dstPath,
+		"url":   uploadedURL,
+		"size":  size,
 		"token": token[:min(len(token), tokenDumpLentgh)],
 	}).Info("File uploaded by POST")
 	if s.EnableCORS {
@@ -262,12 +261,12 @@ func getSrcIP(r *http.Request) (string, error) {
 func (s Server) checkToken(r *http.Request) error {
 	srcIP, srcIPError := getSrcIP(r)
 
+	s.FailedConTrackerMu.Lock()
+	defer s.FailedConTrackerMu.Unlock()
+
 	if srcIPError == nil {
 		connectionTime := time.Now().Unix()
 		tracker, trackerExists := s.FailedConTracker[srcIP]
-
-		s.FailedConTrackerMu.Lock()
-    defer s.FailedConTrackerMu.Unlock()
 
 		if trackerExists {
 			tracker.attempts = tracker.attempts + 1
