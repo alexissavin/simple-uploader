@@ -39,8 +39,8 @@ type fct struct {
 
 // Server represents a simple-upload server.
 type Server struct {
-	DocumentRoot string
 	// MaxUploadSize limits the size of the uploaded content, specified with "byte".
+	DocumentRoot       string
 	MaxUploadSize      int64
 	SecureTokens       []string
 	EnableCORS         bool
@@ -110,12 +110,14 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 		writeError(w, fmt.Errorf("\"%s\" is not found", r.URL.Path))
 		return
 	}
+
 	// Retrieve the token from the query strings
 	token := r.URL.Query().Get("token")
 	// If empty attempt to retrieve the token within the form
 	if token == "" {
 		token = r.FormValue("token")
 	}
+
 	// Create the directory for the given token
 	uploadDir := path.Join(s.DocumentRoot, token)
 
@@ -128,10 +130,32 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// TEST // Attempt to handle Expect header
-	if r.Header.Get("Expect") == "100-continue" {
-		w.WriteHeader(http.StatusContinue)
+
+	// Retrieve filesystem information
+	diskFreeSpace, waitingFiles := getDiskUsage(uploadDir)
+
+	// Check available disk space
+	if diskFreeSpace < s.LimitDiskFreeSpace {
+		logger.WithFields(logrus.Fields{
+			"freeSpaceLimit": s.LimitDiskFreeSpace,
+			"freeSpace":      diskFreeSpace,
+		}).Error("Failed to upload, too many files")
+		w.WriteHeader(http.StatusInsufficientStorage)
+		writeError(w, fmt.Errorf("Failed to upload: disk space too low"))
+		return
 	}
+
+	// Check amount of waiting files
+	if waitingFiles > s.LimitWaitingFiles {
+		logger.WithFields(logrus.Fields{
+			"waitingFilesLimit": s.LimitWaitingFiles,
+			"waitingFiles":      waitingFiles,
+		}).Error("Failed to upload, too many files")
+		w.WriteHeader(http.StatusInsufficientStorage)
+		writeError(w, fmt.Errorf("Failed to upload: too many files"))
+		return
+	}
+
 	// Retrieve the form file
 	srcFile, info, err := r.FormFile("file")
 	if err != nil {
@@ -140,41 +164,53 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 		writeError(w, err)
 		return
 	}
+
 	defer srcFile.Close()
+
 	logger.Debug(info)
 	size, err := getSize(srcFile)
+
 	if err != nil {
 		logger.WithError(err).WithFields(logrus.Fields{"token": token[:min(len(token), tokenDumpLentgh)]}).Error("Failed to get the size of the uploaded content")
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, err)
 		return
 	}
+
 	if size > s.MaxUploadSize {
 		logger.WithField("size", size).Info("File size exceeded")
 		w.WriteHeader(http.StatusRequestEntityTooLarge)
 		writeError(w, errors.New("Uploaded file size exceeds the limit"))
 		return
 	}
+
 	body, err := ioutil.ReadAll(srcFile)
+
 	if err != nil {
 		logger.WithError(err).WithFields(logrus.Fields{"token": token[:min(len(token), tokenDumpLentgh)]}).Error("Failed to read the uploaded content")
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, err)
 		return
 	}
+
 	filename := info.Filename
+
 	if filename == "" {
 		filename = fmt.Sprintf("%x", sha1.Sum(body))
 	}
+
 	dstPath := path.Join(uploadDir, filepath.Base(filename))
 	dstFile, err := os.OpenFile(dstPath+".tmp", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+
 	if err != nil {
 		logger.WithError(err).WithField("path", dstPath).Error("Failed to open the file")
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, err)
 		return
 	}
+
 	defer dstFile.Close()
+
 	if written, err := dstFile.Write(body); err != nil {
 		logger.WithError(err).WithField("path", dstPath).Error("Failed to write file content")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -189,21 +225,28 @@ func (s Server) handlePost(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 		writeError(w, fmt.Errorf("The size of uploaded content is %d, but %d bytes written", size, written))
 	}
+
 	err = os.Rename(dstPath+".tmp", dstPath)
+
 	if err != nil {
 		logger.Error("Unable to rename temporary upload file")
 	}
+
 	uploadedURL := strings.TrimPrefix(dstPath, s.DocumentRoot)
+
 	if !strings.HasPrefix(uploadedURL, "/") {
 		uploadedURL = "/" + uploadedURL
 	}
+
 	uploadedURL = "/files" + uploadedURL
+
 	logger.WithFields(logrus.Fields{
 		"path":  dstPath,
 		"url":   uploadedURL,
 		"size":  size,
 		"token": token[:min(len(token), tokenDumpLentgh)],
 	}).Info("File uploaded by POST")
+
 	if s.EnableCORS {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 	}
@@ -332,29 +375,6 @@ func (s Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := s.checkToken(r); err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
 		writeError(w, err)
-		return
-	}
-
-	// check disk free and number of waiting files
-	var diskfreep, numfiles = getDiskUsage(s.DocumentRoot)
-
-	if diskfreep < s.LimitDiskFreeSpace {
-		w.WriteHeader(http.StatusInsufficientStorage)
-		writeError(w, fmt.Errorf("low water disk level reached %d%%, limit is %d%%", diskfreep, s.LimitDiskFreeSpace))
-		logger.WithFields(logrus.Fields{
-			"limit":   s.LimitDiskFreeSpace,
-			"current": diskfreep,
-		}).Error("low water disk level reached, abort")
-		return
-	}
-
-	if numfiles > s.LimitWaitingFiles {
-		w.WriteHeader(http.StatusInsufficientStorage)
-		writeError(w, fmt.Errorf("max number of files reached %d, limit is %d", numfiles, s.LimitWaitingFiles))
-		logger.WithFields(logrus.Fields{
-			"limit":   s.LimitWaitingFiles,
-			"current": numfiles,
-		}).Error("max number of files reached, abort")
 		return
 	}
 
