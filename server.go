@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"sync"
 	"time"
 )
 
@@ -23,16 +22,33 @@ const (
 )
 
 var (
-	rePathStatus       = regexp.MustCompile(`^/status$`)
-	rePathUpload       = regexp.MustCompile(`^/upload$`)
-	errTokenMismatch   = errors.New("token mismatched")
-	errMissingToken    = errors.New("missing token")
-	errInvalidToken    = errors.New("invalid token format")
-	errTooManyAttempts = errors.New("too many connection attempts using an invalid token")
+	rePathStatus          = regexp.MustCompile(`^/status$`)
+	rePathUpload          = regexp.MustCompile(`^/upload$`)
+	errServerError        = errors.New("internal server error")
+	errTokenMismatch      = errors.New("token mismatched")
+	errMissingToken       = errors.New("missing token")
+	errInvalidToken       = errors.New("invalid token format")
+	errUnidentifiedSource = errors.New("unidentified source")
+	errTooManyAttempts    = errors.New("too many connection attempts using an invalid token")
 )
 
-// FailedConnectionTracker
-type fct struct {
+// Failed Connection Tracker Command Type
+type fctCommandType int
+
+// Failed Connection Tracker Commands
+const (
+	ValidateClient = 0
+	ClearClient    = 1
+)
+
+type fctCommand struct {
+	ty        fctCommandType
+	src       string
+	replyChan chan int
+}
+
+// Failed Connection Tracker Source Info
+type fctClientInfo struct {
 	attempts int64
 	last     int64
 }
@@ -40,15 +56,14 @@ type fct struct {
 // Server represents a simple-upload server.
 type Server struct {
 	// MaxUploadSize limits the size of the uploaded content, specified with "byte".
-	DocumentRoot       string
-	MaxUploadSize      int64
-	SecureTokens       []string
-	EnableCORS         bool
-	MaxAttempts        int64
-	FailedConTracker   map[string]fct
-	LimitDiskFreeSpace int
-	LimitWaitingFiles  int
-	FailedConTrackerMu sync.Mutex
+	DocumentRoot         string
+	MaxUploadSize        int64
+	SecureTokens         []string
+	EnableCORS           bool
+	MaxAttempts          int64
+	LimitDiskFreeSpace   int
+	LimitWaitingFiles    int
+	FailedConTrackerChan chan<- fctCommand
 }
 
 // Read the tokens file
@@ -73,19 +88,73 @@ func LoadTokens(tokens_file string) []string {
 	return (res)
 }
 
+// conTrackerManager starts a goroutine that serves as a manager for our
+// connection tracking. Returns a channel that's used to send commands to the
+// manager.
+func ConTrackerManager(maxAttempts int64) chan<- fctCommand {
+	failedConTracker:= make(map[string]fctClientInfo)
+	cmds := make(chan fctCommand)
+
+	go func() {
+		for cmd := range cmds {
+			switch cmd.ty {
+			case ValidateClient:
+				connectionTime := time.Now().Unix()
+				tracker, trackerExists := failedConTracker[cmd.src]
+
+				if trackerExists {
+					tracker.attempts = tracker.attempts + 1
+					if tracker.attempts > maxAttempts {
+						if tracker.last > (connectionTime - 290) {
+							tracker.last = connectionTime
+							failedConTracker[cmd.src] = tracker
+							logger.WithFields(logrus.Fields{
+								"srcIP":    cmd.src,
+								"attempts": tracker.attempts,
+							}).Error("Too many connection attempts using an invalid token")
+							time.Sleep(time.Second * 4)
+							// Deny the Connection
+							cmd.replyChan <- 0
+
+						}
+					} else {
+						tracker.last = connectionTime
+						failedConTracker[cmd.src] = tracker
+						// Allow the Connection
+						cmd.replyChan <- 1
+					}
+				} else {
+					failedConTracker[cmd.src] = fctClientInfo{
+						last:     connectionTime,
+						attempts: 1,
+					}
+					// Allow the Connection
+					cmd.replyChan <- 1
+				}
+			case ClearClient:
+				delete(failedConTracker, cmd.src)
+				cmd.replyChan <- 0
+			default:
+				cmd.replyChan <- -1
+			}
+		}
+	}()
+	return cmds
+}
+
 // NewServer creates a new simple-upload server.
 func NewServer(documentRoot string, maxUploadSize int64,
 	token_file string, enableCORS bool, MaxAttempts int64,
 	LimitDiskFreeSpace int, LimitWaitingFiles int) Server {
 	return Server{
-		DocumentRoot:       documentRoot,
-		MaxUploadSize:      maxUploadSize,
-		SecureTokens:       LoadTokens(token_file),
-		EnableCORS:         enableCORS,
-		MaxAttempts:        MaxAttempts,
-		FailedConTracker:   make(map[string]fct),
-		LimitDiskFreeSpace: LimitDiskFreeSpace,
-		LimitWaitingFiles:  LimitWaitingFiles,
+		DocumentRoot:         documentRoot,
+		MaxUploadSize:        maxUploadSize,
+		SecureTokens:         LoadTokens(token_file),
+		EnableCORS:           enableCORS,
+		MaxAttempts:          MaxAttempts,
+		LimitDiskFreeSpace:   LimitDiskFreeSpace,
+		LimitWaitingFiles:    LimitWaitingFiles,
+		FailedConTrackerChan: ConTrackerManager(MaxAttempts),
 	}
 }
 
@@ -303,37 +372,25 @@ func getSrcIP(r *http.Request) (string, error) {
 
 func (s Server) checkToken(r *http.Request) error {
 	srcIP, srcIPError := getSrcIP(r)
-
-	s.FailedConTrackerMu.Lock()
-	defer s.FailedConTrackerMu.Unlock()
+	replyChan := make(chan int)
 
 	if srcIPError == nil {
-		connectionTime := time.Now().Unix()
-		tracker, trackerExists := s.FailedConTracker[srcIP]
+		s.FailedConTrackerChan <- fctCommand{
+			ty:        ValidateClient,
+			src:       srcIP,
+			replyChan: replyChan,
+		}
 
-		if trackerExists {
-			tracker.attempts = tracker.attempts + 1
-			if tracker.attempts > s.MaxAttempts {
-				if tracker.last > (connectionTime - 290) {
-					tracker.last = connectionTime
-					s.FailedConTracker[srcIP] = tracker
-					logger.WithFields(logrus.Fields{
-						"srcIP":    srcIP,
-						"attempts": tracker.attempts,
-					}).Error("Too many connection attempts using an invalid token")
-					time.Sleep(time.Second * 4)
-					return errTooManyAttempts
-				}
-			}
-			tracker.last = connectionTime
-			s.FailedConTracker[srcIP] = tracker
-		} else {
-			s.FailedConTracker[srcIP] = fct{
-				last:     connectionTime,
-				attempts: 1,
-			}
+		switch reply := <-replyChan; reply {
+		case 0:
+			// Connection is granted, do nothing here
+		case 1:
+			return errTooManyAttempts
+		default:
+			return errServerError
 		}
 	} else {
+		return errUnidentifiedSource
 		logger.Error("Connection attempt from non identified source")
 	}
 
@@ -352,8 +409,10 @@ func (s Server) checkToken(r *http.Request) error {
 	if match {
 		for _, t := range s.SecureTokens {
 			if token == t {
-				if srcIPError == nil {
-					delete(s.FailedConTracker, srcIP)
+				s.FailedConTrackerChan <- fctCommand{
+					ty:        ClearClient,
+					src:       srcIP,
+					replyChan: replyChan,
 				}
 				return nil
 			}
