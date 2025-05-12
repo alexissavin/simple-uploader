@@ -93,6 +93,7 @@ func LoadTokens(tokens_file string) []string {
 // manager.
 func ConTrackerManager(maxAttempts int64) chan<- fctCommand {
 	failedConTracker := make(map[string]fctClientInfo)
+	lastClean := time.Now().Unix()
 	cmds := make(chan fctCommand)
 
 	go func() {
@@ -100,8 +101,23 @@ func ConTrackerManager(maxAttempts int64) chan<- fctCommand {
 			switch cmd.ty {
 			case ValidateClient:
 				currentTime := time.Now().Unix()
-				tracker, trackerExists := failedConTracker[cmd.src]
+				sinceLastClean := currentTime - lastClean
 
+				// // Clean failed connection tracker every 10 min
+				if sinceLastClean >= 10*60 {
+					logger.Info("Cleanning tracked connections")
+					cutOffTime := currentTime - 30*60
+					lastClean = currentTime
+
+					// For each tracked client, if tracker is too old, clear its tracker
+					for c, t := range failedConTracker {
+						if t.last < cutOffTime {
+							delete(failedConTracker, c)
+						}
+					}
+				}
+
+				tracker, trackerExists := failedConTracker[cmd.src]
 				if trackerExists {
 					sinceLastAttempt := currentTime - tracker.last
 					tracker.attempts = tracker.attempts + 1
@@ -113,7 +129,7 @@ func ConTrackerManager(maxAttempts int64) chan<- fctCommand {
 							logger.WithFields(logrus.Fields{
 								"srcIP":    cmd.src,
 								"attempts": tracker.attempts,
-							}).Error("Too many connection attempts using an invalid token")
+							}).Error("Too many connections attempts using an invalid token")
 							time.Sleep(time.Second * 4)
 							// Deny the Connection
 							cmd.replyChan <- 0
@@ -124,7 +140,7 @@ func ConTrackerManager(maxAttempts int64) chan<- fctCommand {
 							logger.WithFields(logrus.Fields{
 								"srcIP":    cmd.src,
 								"attempts": tracker.attempts,
-							}).Info("Allowing connection")
+							}).Debug("Allowing connection")
 							cmd.replyChan <- 1
 						}
 					} else {
@@ -134,7 +150,7 @@ func ConTrackerManager(maxAttempts int64) chan<- fctCommand {
 						logger.WithFields(logrus.Fields{
 							"srcIP":    cmd.src,
 							"attempts": tracker.attempts,
-						}).Info("Allowing connection")
+						}).Debug("Allowing connection")
 						cmd.replyChan <- 1
 					}
 				} else {
@@ -146,7 +162,7 @@ func ConTrackerManager(maxAttempts int64) chan<- fctCommand {
 					logger.WithFields(logrus.Fields{
 						"srcIP":    cmd.src,
 						"attempts": 1,
-					}).Info("Allowing connection")
+					}).Debug("Allowing connection")
 					cmd.replyChan <- 1
 				}
 			case ClearClient:
@@ -154,9 +170,9 @@ func ConTrackerManager(maxAttempts int64) chan<- fctCommand {
 
 				if trackerExists {
 					logger.WithFields(logrus.Fields{
-						"srcIP": cmd.src,
+						"srcIP":    cmd.src,
 						"attempts": tracker.attempts,
-					}).Info("Clearing client tracker")
+					}).Debug("Clearing client tracker")
 					tracker.attempts = 0
 					failedConTracker[cmd.src] = tracker
 				}
@@ -442,26 +458,26 @@ func (s Server) checkToken(r *http.Request) error {
 					src:       srcIP,
 					replyChan: replyChan,
 				}
-				reply := <-replyChan;
 
-				if reply > 0 {
-					logger.Error("Error clearing client counters")
+				// Beware !!! Need to read the channel to prevent process lock
+				if reply := <-replyChan; reply > 0 {
+					logger.Error("Error clearing client tracker")
 				}
 
-				logger.Error("Connection succeed using valid token")
+				logger.Debug("Authentication succeed")
 				return nil
 			}
 		}
 
 		logger.WithFields(logrus.Fields{
 			"token": token[:min(len(token), tokenDumpLentgh)],
-		}).Error("Connection attempt using unkown token")
+		}).Error("Authentication attempt using unkown token")
 		return errTokenMismatch
 	}
 
 	logger.WithFields(logrus.Fields{
 		"token": token[:min(len(token), tokenDumpLentgh)],
-	}).Error("Connection attempt using invalid token format")
+	}).Error("Authentication attempt using invalid token format")
 	return errInvalidToken
 }
 
