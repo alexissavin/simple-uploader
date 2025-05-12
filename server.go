@@ -92,21 +92,23 @@ func LoadTokens(tokens_file string) []string {
 // connection tracking. Returns a channel that's used to send commands to the
 // manager.
 func ConTrackerManager(maxAttempts int64) chan<- fctCommand {
-	failedConTracker:= make(map[string]fctClientInfo)
+	failedConTracker := make(map[string]fctClientInfo)
 	cmds := make(chan fctCommand)
 
 	go func() {
 		for cmd := range cmds {
 			switch cmd.ty {
 			case ValidateClient:
-				connectionTime := time.Now().Unix()
+				currentTime := time.Now().Unix()
 				tracker, trackerExists := failedConTracker[cmd.src]
 
 				if trackerExists {
+					sinceLastAttempt := currentTime - tracker.last
 					tracker.attempts = tracker.attempts + 1
+
 					if tracker.attempts > maxAttempts {
-						if tracker.last > (connectionTime - 290) {
-							tracker.last = connectionTime
+						if sinceLastAttempt < 5*60 {
+							tracker.last = currentTime
 							failedConTracker[cmd.src] = tracker
 							logger.WithFields(logrus.Fields{
 								"srcIP":    cmd.src,
@@ -115,24 +117,50 @@ func ConTrackerManager(maxAttempts int64) chan<- fctCommand {
 							time.Sleep(time.Second * 4)
 							// Deny the Connection
 							cmd.replyChan <- 0
-
+						} else {
+							// Allow the Connection
+							tracker.last = currentTime
+							failedConTracker[cmd.src] = tracker
+							logger.WithFields(logrus.Fields{
+								"srcIP":    cmd.src,
+								"attempts": tracker.attempts,
+							}).Info("Allowing connection")
+							cmd.replyChan <- 1
 						}
 					} else {
-						tracker.last = connectionTime
-						failedConTracker[cmd.src] = tracker
 						// Allow the Connection
+						tracker.last = currentTime
+						failedConTracker[cmd.src] = tracker
+						logger.WithFields(logrus.Fields{
+							"srcIP":    cmd.src,
+							"attempts": tracker.attempts,
+						}).Info("Allowing connection")
 						cmd.replyChan <- 1
 					}
 				} else {
+					// Allow first connection
 					failedConTracker[cmd.src] = fctClientInfo{
-						last:     connectionTime,
+						last:     currentTime,
 						attempts: 1,
 					}
-					// Allow the Connection
+					logger.WithFields(logrus.Fields{
+						"srcIP":    cmd.src,
+						"attempts": 1,
+					}).Info("Allowing connection")
 					cmd.replyChan <- 1
 				}
 			case ClearClient:
-				delete(failedConTracker, cmd.src)
+				tracker, trackerExists := failedConTracker[cmd.src]
+
+				if trackerExists {
+					logger.WithFields(logrus.Fields{
+						"srcIP": cmd.src,
+						"attempts": tracker.attempts,
+					}).Info("Clearing client tracker")
+					tracker.attempts = 0
+					failedConTracker[cmd.src] = tracker
+				}
+
 				cmd.replyChan <- 0
 			default:
 				cmd.replyChan <- -1
@@ -382,9 +410,9 @@ func (s Server) checkToken(r *http.Request) error {
 		}
 
 		switch reply := <-replyChan; reply {
-		case 0:
-			// Connection is granted, do nothing here
 		case 1:
+			// Connection is granted, do nothing here
+		case 0:
 			return errTooManyAttempts
 		default:
 			return errServerError
@@ -414,6 +442,13 @@ func (s Server) checkToken(r *http.Request) error {
 					src:       srcIP,
 					replyChan: replyChan,
 				}
+				reply := <-replyChan;
+
+				if reply > 0 {
+					logger.Error("Error clearing client counters")
+				}
+
+				logger.Error("Connection succeed using valid token")
 				return nil
 			}
 		}
