@@ -102,3 +102,4 @@ docker run -p 8080:8080 --user `id -u`:`id -g` -v $(pwd)/data:/var/html/simple_u
 # Refs
 * https://medium.com/honestbee-tw-engineer/gracefully-shutdown-in-go-http-server-5f5e6b83da5a
 * https://github.com/eliben/code-for-blog/blob/main/2019/gohttpconcurrency/channel-manager-server.go
+* https://stackoverflow.com/questions/22625367/how-to-limit-the-connections-count-of-an-http-server-implemented-in-go
