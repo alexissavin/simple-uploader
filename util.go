@@ -1,6 +1,3 @@
-//go:build !windows
-// +build !windows
-
 package main
 
 import (
@@ -9,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"syscall"
-	"time"
 )
 
 type response struct {
@@ -76,32 +72,15 @@ func getSize(content io.Seeker) (int64, error) {
 	return size, nil
 }
 
-type sCacheDiskUsage struct {
-	files  int
-	freep  int
-	update int64
-}
-
-var CacheDiskUsage sCacheDiskUsage
-
 func getDiskUsage(path string) (int, int) {
 	var stat syscall.Statfs_t
 
-	// update only once every 30 seconds
-	if CacheDiskUsage.update > (time.Now().Unix() - 30) {
-		return CacheDiskUsage.freep, CacheDiskUsage.files
-	}
-
 	syscall.Statfs(path, &stat)
-
 	d, e := os.ReadDir(path)
+
 	if e != nil {
 		panic(e)
 	}
 
-	CacheDiskUsage.update = time.Now().Unix()
-	CacheDiskUsage.files = len(d)
-	CacheDiskUsage.freep = int(stat.Bfree * 100 / stat.Blocks)
-
-	return CacheDiskUsage.freep, CacheDiskUsage.files
+	return int(stat.Bfree * 100 / stat.Blocks), len(d)
 }
